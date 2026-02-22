@@ -1,11 +1,11 @@
 # Project State
 
 ## Current Phase
-Phase 1 - Monitoring MVP (Iteration 1 complete)
+Phase 1 - Monitoring MVP (Iteration 2 complete)
 
 ## System Status
 Backend foundation is now operational.
-FastAPI service skeleton and validated baseline tests are in repository.
+Core monitoring flow is now operational via API with in-memory storage.
 
 ## Implemented Capabilities
 - project structure
@@ -16,25 +16,29 @@ FastAPI service skeleton and validated baseline tests are in repository.
 - structured request logging middleware with X-Request-ID propagation
 - global fallback error handler returning request-correlated 500 responses
 - context-safe logger formatting isolated to NetSentinel logger namespace
-- domain models for Node and ProbeResult
-- in-memory repository abstraction
-- baseline tests for health endpoint, request ID behavior, logging safety, and model validation
+- domain models for Node, RegisteredNode, ProbeResult, and probe run contract
+- in-memory repository abstraction with node lookup, enabled-node selection, and result limiting
+- node registration and listing endpoints (`POST /nodes`, `GET /nodes`)
+- probe execution endpoint (`POST /probes/run`) for one node or all enabled nodes
+- result retrieval endpoint (`GET /results`) with `node_id` and `limit` filters (latest by `checked_at`)
+- TCP probe service for availability and latency measurement
+- integration tests for core monitoring flow plus baseline health/logging/model tests
 
 ## Active Focus
-Implement node registration and first TCP probe workflow.
+Stabilize monitoring API behavior and prepare persistent result storage.
 
 ## Architecture Snapshot
-Backend: FastAPI baseline implemented
+Backend: FastAPI API with nodes/probes/results flow
 Database: not implemented (in-memory repository only)
-Probes: not implemented (models ready)
+Probes: synchronous TCP probe implemented
 
 ## Known Limitations
 - No persistent storage
-- No node registration endpoint yet
-- No active TCP probe execution yet
+- No background/scheduled probing
+- Single-process in-memory state only
 
 ## Next Iteration Goal
-Add node registration API and TCP connectivity probe execution with result recording.
+Add persistent result storage and keep the same node/probe API contracts.
 
 ## Last Updated
-Iteration 1 closed
+Iteration 2 closed (post-review fixes applied)

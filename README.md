@@ -60,13 +60,17 @@ See `ROADMAP.md` for details.
 
 ## ⚙️ Project Status
 
-Iteration 1 baseline implemented.
+Iteration 2 core monitoring flow implemented.
 
 Current backend capabilities:
 - FastAPI application bootstrap
 - `/health` endpoint with runtime metadata
 - request logging middleware with request ID propagation
-- domain models for `Node` and `ProbeResult`
+- node registration API: `POST /nodes`, `GET /nodes`
+- probe execution API: `POST /probes/run`
+- probe results API: `GET /results?node_id=...&limit=...`
+- domain models for nodes and probe results
+- TCP connectivity probe with latency measurement
 - in-memory repository abstraction
 - baseline pytest suite
 

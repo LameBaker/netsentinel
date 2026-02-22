@@ -14,6 +14,10 @@ class Node(BaseModel):
     enabled: bool = True
 
 
+class RegisteredNode(Node):
+    node_id: str = Field(min_length=1, max_length=64)
+
+
 class ProbeResult(BaseModel):
     model_config = ConfigDict(str_strip_whitespace=True)
 
@@ -22,3 +26,11 @@ class ProbeResult(BaseModel):
     latency_ms: float = Field(ge=0)
     checked_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
     error: str | None = Field(default=None, max_length=512)
+
+
+class ProbeRunRequest(BaseModel):
+    node_id: str | None = Field(default=None, min_length=1, max_length=64)
+
+
+class ProbeRunResponse(BaseModel):
+    results: list[ProbeResult]

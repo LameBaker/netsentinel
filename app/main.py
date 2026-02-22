@@ -7,7 +7,10 @@ from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 
 from app.api.health import router as health_router
+from app.api.nodes import router as nodes_router
+from app.api.probes import router as probes_router
 from app.core.logging import configure_logging
+from app.services.prober import tcp_probe
 from app.storage.repository import InMemoryRepository
 
 SERVICE_NAME = 'netsentinel'
@@ -36,6 +39,7 @@ def create_app() -> FastAPI:
     app.state.version = SERVICE_VERSION
     app.state.started_at = datetime.now(UTC)
     app.state.repository = InMemoryRepository()
+    app.state.probe_node = tcp_probe
 
     logger = RequestContextAdapter(logging.getLogger('netsentinel.http'), {})
 
@@ -79,6 +83,8 @@ def create_app() -> FastAPI:
         return response
 
     app.include_router(health_router)
+    app.include_router(nodes_router)
+    app.include_router(probes_router)
     return app
 
 

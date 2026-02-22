@@ -1,10 +1,10 @@
 # Current Iteration
 
 Goal:
-Implement node registration and TCP probe baseline.
+Introduce persistent storage behind existing monitoring API contracts.
 
 Tasks:
-- add node registration endpoint
-- add TCP connectivity probe execution service
-- persist probe results via repository abstraction
-- add tests for registration and probe flow
+- add repository adapter for persistent node/result storage
+- keep `POST /nodes`, `GET /nodes`, `POST /probes/run`, `GET /results` contracts unchanged
+- add migration/bootstrap for local dev storage
+- add tests for storage-backed node/probe/result flow
