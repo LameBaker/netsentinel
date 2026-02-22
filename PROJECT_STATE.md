@@ -54,4 +54,4 @@ Probes: synchronous TCP probe with automatic periodic execution
 Harden persistent storage operations and observability for long-running single-process deployments.
 
 ## Last Updated
-Iteration 6 closed
+Iteration 6 closed (final review fixes applied)
