@@ -217,3 +217,55 @@ def test_sqlite_init_fails_on_future_schema_version(tmp_path) -> None:
         assert False, 'Expected RuntimeError for unsupported SQLite schema version'
     except RuntimeError as exc:
         assert 'Failed to initialize SQLite repository' in str(exc)
+
+
+def test_sqlite_results_summary_matches_in_memory_contract(tmp_path, monkeypatch) -> None:
+    db_path = tmp_path / 'netsentinel.sqlite3'
+    monkeypatch.setenv('NETSENTINEL_STORAGE_BACKEND', 'sqlite')
+    monkeypatch.setenv('NETSENTINEL_SQLITE_PATH', str(db_path))
+
+    app = create_app(scheduler_interval_s=60.0)
+    base = datetime(2026, 1, 1, 10, 0, tzinfo=UTC)
+    scripted = [
+        ('up', 10.0, None, base),
+        ('down', 0.0, 'timeout', base.replace(minute=1)),
+        ('up', 30.0, None, base.replace(minute=2)),
+    ]
+
+    def fake_probe(node) -> ProbeResult:
+        status, latency_ms, error, checked_at = scripted.pop(0)
+        return ProbeResult(
+            node_id=node.node_id,
+            status=status,
+            latency_ms=latency_ms,
+            checked_at=checked_at,
+            error=error,
+        )
+
+    app.state.probe_node = fake_probe
+    with TestClient(app) as client:
+        node = client.post(
+            '/nodes',
+            json={
+                'name': 'sqlite-summary-node',
+                'host': '127.0.0.1',
+                'port': 443,
+                'region': 'us',
+            },
+        ).json()
+
+        client.post('/probes/run', json={'node_id': node['node_id']})
+        client.post('/probes/run', json={'node_id': node['node_id']})
+        client.post('/probes/run', json={'node_id': node['node_id']})
+
+        response = client.get('/results/summary', params={'node_id': node['node_id']})
+        assert response.status_code == 200
+        payload = response.json()
+        assert payload['total_checks'] == 3
+        assert payload['up_checks'] == 2
+        assert payload['down_checks'] == 1
+        assert payload['availability_pct'] == 66.667
+        assert payload['avg_latency_ms'] == 20.0
+        assert payload['last_checked_at'] == base.replace(minute=2).isoformat().replace(
+            '+00:00', 'Z'
+        )

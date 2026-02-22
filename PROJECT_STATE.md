@@ -1,7 +1,7 @@
 # Project State
 
 ## Current Phase
-Phase 1 - Monitoring MVP (Iteration 8 complete)
+Phase 1 - Monitoring MVP (Iteration 9 complete)
 
 ## System Status
 Backend foundation is now operational.
@@ -46,9 +46,13 @@ Core monitoring flow runs automatically with reliability controls and hardened S
 - fail-fast guard for unsupported future SQLite schema versions
 - fail-fast guard for missing migration step definitions
 - migration tests for fresh DB versioning, legacy upgrade, and future-version rejection
+- optional inclusive time-window filters for `GET /results` (`from`, `to`) with stable existing params
+- additive probe history summary endpoint `GET /results/summary` (`total_checks`, `up_checks`, `down_checks`, `availability_pct`, `avg_latency_ms`, `last_checked_at`)
+- on-demand summary computation in both in-memory and SQLite repositories (no caching/background jobs)
+- repository parity tests for summary behavior across storage backends
 
 ## Active Focus
-Stabilize single-process SQLite operation while preserving existing API contracts.
+Improve operator usefulness of stored probe history while preserving existing API contracts.
 
 ## Architecture Snapshot
 Backend: FastAPI API with nodes/probes/results + scheduler control endpoints
@@ -61,7 +65,7 @@ Probes: synchronous TCP probe with automatic periodic execution
 - No archival/export strategy beyond retention trimming
 
 ## Next Iteration Goal
-Add minimal data lifecycle controls for SQLite results (bounded retention defaults and deterministic pruning validation).
+Add minimal history usability safeguards (request validation for time windows and deterministic defaults/documentation for history queries).
 
 ## Last Updated
-Iteration 8 closed (SQLite schema versioning + linear migrations + startup compatibility checks)
+Iteration 9 closed (history filters + summary endpoint + repository parity)

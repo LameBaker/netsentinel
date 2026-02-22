@@ -6,6 +6,7 @@ from pathlib import Path
 from uuid import uuid4
 
 from app.domain.models import Node, ProbeResult, RegisteredNode
+from app.domain.models import ProbeResultsSummary
 from app.storage.repository import (
     RepositoryDuplicateError,
     RepositoryUnavailableError,
@@ -136,17 +137,32 @@ class SQLiteRepository:
         return self._run_read(read)
 
     def list_probe_results(
-        self, node_id: str | None = None, limit: int | None = None
+        self,
+        node_id: str | None = None,
+        limit: int | None = None,
+        checked_from: datetime | None = None,
+        checked_to: datetime | None = None,
     ) -> list[ProbeResult]:
         query = (
             "SELECT node_id, status, latency_ms, checked_at, error "
             "FROM probe_results"
         )
         params: list[object] = []
+        conditions: list[str] = []
 
         if node_id is not None:
-            query += ' WHERE node_id = ?'
+            conditions.append('node_id = ?')
             params.append(node_id)
+        from_bound = self._normalize_datetime(checked_from)
+        if from_bound is not None:
+            conditions.append('checked_at >= ?')
+            params.append(from_bound.isoformat())
+        to_bound = self._normalize_datetime(checked_to)
+        if to_bound is not None:
+            conditions.append('checked_at <= ?')
+            params.append(to_bound.isoformat())
+        if conditions:
+            query += ' WHERE ' + ' AND '.join(conditions)
 
         query += ' ORDER BY checked_at DESC'
 
@@ -170,8 +186,75 @@ class SQLiteRepository:
             for row in rows
         ]
 
+    def summarize_probe_results(
+        self,
+        node_id: str | None = None,
+        checked_from: datetime | None = None,
+        checked_to: datetime | None = None,
+    ) -> ProbeResultsSummary:
+        query = (
+            'SELECT '
+            'COUNT(*) AS total_checks, '
+            "SUM(CASE WHEN status = 'up' THEN 1 ELSE 0 END) AS up_checks, "
+            "SUM(CASE WHEN status = 'down' THEN 1 ELSE 0 END) AS down_checks, "
+            "AVG(CASE WHEN status = 'up' THEN latency_ms END) AS avg_latency_ms, "
+            'MAX(checked_at) AS last_checked_at '
+            'FROM probe_results'
+        )
+        params: list[object] = []
+        conditions: list[str] = []
+        if node_id is not None:
+            conditions.append('node_id = ?')
+            params.append(node_id)
+        from_bound = self._normalize_datetime(checked_from)
+        if from_bound is not None:
+            conditions.append('checked_at >= ?')
+            params.append(from_bound.isoformat())
+        to_bound = self._normalize_datetime(checked_to)
+        if to_bound is not None:
+            conditions.append('checked_at <= ?')
+            params.append(to_bound.isoformat())
+        if conditions:
+            query += ' WHERE ' + ' AND '.join(conditions)
+
+        def read(conn: sqlite3.Connection) -> sqlite3.Row:
+            conn.row_factory = sqlite3.Row
+            return conn.execute(query, params).fetchone()
+
+        row = self._run_read(read)
+        total_checks = int(row['total_checks'] or 0)
+        up_checks = int(row['up_checks'] or 0)
+        down_checks = int(row['down_checks'] or 0)
+        availability_pct = 0.0
+        if total_checks > 0:
+            availability_pct = round((up_checks / total_checks) * 100, 3)
+        avg_latency_ms = row['avg_latency_ms']
+        if avg_latency_ms is not None:
+            avg_latency_ms = round(float(avg_latency_ms), 3)
+        last_checked_at = row['last_checked_at']
+        return ProbeResultsSummary(
+            total_checks=total_checks,
+            up_checks=up_checks,
+            down_checks=down_checks,
+            availability_pct=availability_pct,
+            avg_latency_ms=avg_latency_ms,
+            last_checked_at=(
+                datetime.fromisoformat(last_checked_at)
+                if last_checked_at is not None
+                else None
+            ),
+        )
+
     def get_last_error(self) -> str | None:
         return self._last_error
+
+    @staticmethod
+    def _normalize_datetime(value: datetime | None) -> datetime | None:
+        if value is None:
+            return None
+        if value.tzinfo is None:
+            return value.replace(tzinfo=UTC)
+        return value.astimezone(UTC)
 
     def _get_schema_version(self, conn: sqlite3.Connection) -> int:
         row = conn.execute('PRAGMA user_version').fetchone()

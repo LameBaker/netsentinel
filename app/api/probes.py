@@ -1,6 +1,14 @@
+from datetime import datetime
+
 from fastapi import APIRouter, HTTPException, Query, Request
 
-from app.domain.models import ProbeResult, ProbeRunRequest, ProbeRunResponse, RegisteredNode
+from app.domain.models import (
+    ProbeResult,
+    ProbeResultsSummary,
+    ProbeRunRequest,
+    ProbeRunResponse,
+    RegisteredNode,
+)
 
 router = APIRouter(tags=['probes'])
 
@@ -46,6 +54,28 @@ def list_results(
     request: Request,
     node_id: str | None = Query(default=None),
     limit: int | None = Query(default=None, ge=1, le=1000),
+    from_: datetime | None = Query(default=None, alias='from'),
+    to: datetime | None = Query(default=None),
 ) -> list[ProbeResult]:
     repository = request.app.state.repository
-    return repository.list_probe_results(node_id=node_id, limit=limit)
+    return repository.list_probe_results(
+        node_id=node_id,
+        limit=limit,
+        checked_from=from_,
+        checked_to=to,
+    )
+
+
+@router.get('/results/summary', response_model=ProbeResultsSummary)
+def summarize_results(
+    request: Request,
+    node_id: str | None = Query(default=None),
+    from_: datetime | None = Query(default=None, alias='from'),
+    to: datetime | None = Query(default=None),
+) -> ProbeResultsSummary:
+    repository = request.app.state.repository
+    return repository.summarize_probe_results(
+        node_id=node_id,
+        checked_from=from_,
+        checked_to=to,
+    )

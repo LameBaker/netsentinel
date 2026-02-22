@@ -295,3 +295,145 @@ def test_probe_retry_returns_down_after_retries_exhausted() -> None:
     payload = response.json()
     assert payload['results'][0]['status'] == 'down'
     assert calls['count'] == 2
+
+
+def test_results_supports_inclusive_time_window_filters() -> None:
+    app = create_app()
+    base = datetime(2026, 1, 1, 12, 0, tzinfo=UTC)
+    checks = [base, base.replace(minute=1), base.replace(minute=2)]
+
+    def fake_probe(node) -> ProbeResult:
+        checked_at = checks.pop(0)
+        return ProbeResult(
+            node_id=node.node_id,
+            status='up',
+            latency_ms=5.0,
+            checked_at=checked_at,
+        )
+
+    app.state.probe_node = fake_probe
+    client = TestClient(app)
+
+    node = client.post(
+        '/nodes',
+        json={
+            'name': 'window-node',
+            'host': '127.0.0.1',
+            'port': 443,
+            'region': 'us',
+        },
+    ).json()
+
+    client.post('/probes/run', json={'node_id': node['node_id']})
+    client.post('/probes/run', json={'node_id': node['node_id']})
+    client.post('/probes/run', json={'node_id': node['node_id']})
+
+    response = client.get(
+        '/results',
+        params={
+            'node_id': node['node_id'],
+            'from': base.replace(minute=1).isoformat(),
+            'to': base.replace(minute=2).isoformat(),
+        },
+    )
+    assert response.status_code == 200
+    payload = response.json()
+    assert len(payload) == 2
+    assert payload[0]['checked_at'] == base.replace(minute=2).isoformat().replace(
+        '+00:00', 'Z'
+    )
+    assert payload[1]['checked_at'] == base.replace(minute=1).isoformat().replace(
+        '+00:00', 'Z'
+    )
+
+
+def test_results_summary_returns_expected_aggregates() -> None:
+    app = create_app()
+    base = datetime(2026, 1, 1, 10, 0, tzinfo=UTC)
+    scripted = [
+        ('up', 10.0, None, base),
+        ('down', 0.0, 'timeout', base.replace(minute=1)),
+        ('up', 30.0, None, base.replace(minute=2)),
+    ]
+
+    def fake_probe(node) -> ProbeResult:
+        status, latency_ms, error, checked_at = scripted.pop(0)
+        return ProbeResult(
+            node_id=node.node_id,
+            status=status,
+            latency_ms=latency_ms,
+            checked_at=checked_at,
+            error=error,
+        )
+
+    app.state.probe_node = fake_probe
+    client = TestClient(app)
+    node = client.post(
+        '/nodes',
+        json={
+            'name': 'summary-node',
+            'host': '127.0.0.1',
+            'port': 443,
+            'region': 'us',
+        },
+    ).json()
+
+    client.post('/probes/run', json={'node_id': node['node_id']})
+    client.post('/probes/run', json={'node_id': node['node_id']})
+    client.post('/probes/run', json={'node_id': node['node_id']})
+
+    response = client.get('/results/summary', params={'node_id': node['node_id']})
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload['total_checks'] == 3
+    assert payload['up_checks'] == 2
+    assert payload['down_checks'] == 1
+    assert payload['availability_pct'] == 66.667
+    assert payload['avg_latency_ms'] == 20.0
+    assert payload['last_checked_at'] == base.replace(minute=2).isoformat().replace(
+        '+00:00', 'Z'
+    )
+
+
+def test_results_summary_returns_zero_state_for_empty_window() -> None:
+    app = create_app()
+    at = datetime(2026, 1, 1, 9, 0, tzinfo=UTC)
+
+    def fake_probe(node) -> ProbeResult:
+        return ProbeResult(
+            node_id=node.node_id,
+            status='up',
+            latency_ms=7.0,
+            checked_at=at,
+        )
+
+    app.state.probe_node = fake_probe
+    client = TestClient(app)
+    node = client.post(
+        '/nodes',
+        json={
+            'name': 'summary-empty-window-node',
+            'host': '127.0.0.1',
+            'port': 443,
+            'region': 'us',
+        },
+    ).json()
+
+    client.post('/probes/run', json={'node_id': node['node_id']})
+
+    response = client.get(
+        '/results/summary',
+        params={
+            'node_id': node['node_id'],
+            'from': at.replace(hour=11).isoformat(),
+            'to': at.replace(hour=12).isoformat(),
+        },
+    )
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload['total_checks'] == 0
+    assert payload['up_checks'] == 0
+    assert payload['down_checks'] == 0
+    assert payload['availability_pct'] == 0.0
+    assert payload['avg_latency_ms'] is None
+    assert payload['last_checked_at'] is None

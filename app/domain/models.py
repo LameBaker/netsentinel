@@ -34,3 +34,12 @@ class ProbeRunRequest(BaseModel):
 
 class ProbeRunResponse(BaseModel):
     results: list[ProbeResult]
+
+
+class ProbeResultsSummary(BaseModel):
+    total_checks: int = Field(ge=0)
+    up_checks: int = Field(ge=0)
+    down_checks: int = Field(ge=0)
+    availability_pct: float = Field(ge=0, le=100)
+    avg_latency_ms: float | None = Field(default=None, ge=0)
+    last_checked_at: datetime | None = None
