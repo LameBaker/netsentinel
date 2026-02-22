@@ -17,6 +17,7 @@ from app.core.logging import configure_logging
 from app.services.prober import tcp_probe
 from app.services.scheduler import MonitoringScheduler
 from app.storage.repository import InMemoryRepository
+from app.storage.sqlite_repository import SQLiteRepository
 
 SERVICE_NAME = 'netsentinel'
 SERVICE_VERSION = '0.1.0'
@@ -41,6 +42,8 @@ def create_app(
     scheduler_interval_s: float | None = None,
     probe_timeout_s: float | None = None,
     probe_retry_count: int | None = None,
+    storage_backend: str | None = None,
+    sqlite_path: str | None = None,
 ) -> FastAPI:
     configure_logging()
     interval = scheduler_interval_s
@@ -73,6 +76,8 @@ def create_app(
         except ValueError:
             retry_count = 0
     retry_count = max(0, min(2, retry_count))
+    backend = storage_backend or os.getenv('NETSENTINEL_STORAGE_BACKEND', 'memory')
+    db_path = sqlite_path or os.getenv('NETSENTINEL_SQLITE_PATH', './netsentinel.sqlite3')
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
@@ -86,7 +91,11 @@ def create_app(
     app.state.service_name = SERVICE_NAME
     app.state.version = SERVICE_VERSION
     app.state.started_at = datetime.now(UTC)
-    app.state.repository = InMemoryRepository()
+    if backend == 'sqlite':
+        app.state.repository = SQLiteRepository(db_path)
+        app.state.repository.initialize()
+    else:
+        app.state.repository = InMemoryRepository()
     app.state.probe_timeout_s = timeout_s
     app.state.probe_retry_count = retry_count
     app.state.probe_node = lambda node: tcp_probe(node, timeout_s=app.state.probe_timeout_s)

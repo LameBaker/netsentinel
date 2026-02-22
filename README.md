@@ -95,6 +95,14 @@ python3 -m pip install -e ".[dev]"
 uvicorn app.main:app --reload
 ```
 
+Optional: enable SQLite persistence (instead of in-memory storage):
+
+```bash
+export NETSENTINEL_STORAGE_BACKEND=sqlite
+export NETSENTINEL_SQLITE_PATH=./netsentinel.sqlite3
+uvicorn app.main:app --reload
+```
+
 4. Check health endpoint:
 
 ```bash

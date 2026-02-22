@@ -26,6 +26,9 @@ class Repository(Protocol):
     ) -> list[ProbeResult]:
         ...
 
+    def count_probe_results(self) -> int:
+        ...
+
 
 class InMemoryRepository:
     def __init__(self) -> None:
@@ -64,3 +67,6 @@ class InMemoryRepository:
         if limit is None:
             return ordered
         return ordered[:limit]
+
+    def count_probe_results(self) -> int:
+        return len(self._results)

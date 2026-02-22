@@ -14,7 +14,7 @@ def metrics(request: Request) -> dict[str, object]:
     uptime_seconds = (datetime.now(UTC) - app_state.started_at).total_seconds()
     nodes_total = len(repository.list_nodes())
     nodes_enabled = len(repository.list_enabled_nodes())
-    probe_results_total = len(repository.list_probe_results())
+    probe_results_total = repository.count_probe_results()
 
     return {
         'service': app_state.service_name,

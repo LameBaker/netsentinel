@@ -1,11 +1,11 @@
 # Project State
 
 ## Current Phase
-Phase 1 - Monitoring MVP (Iteration 5 complete)
+Phase 1 - Monitoring MVP (Iteration 6 complete)
 
 ## System Status
 Backend foundation is now operational.
-Core monitoring flow runs automatically with reliability controls and operational observability in-memory.
+Core monitoring flow runs automatically with reliability controls and persistent storage option.
 
 ## Implemented Capabilities
 - project structure
@@ -31,22 +31,27 @@ Core monitoring flow runs automatically with reliability controls and operationa
 - structured scheduler cycle logs (`cycle_start`, `cycle_complete`, `cycle_failed`) with cycle fields
 - guardrails for runtime config (`probe_retry_count` clamp, scheduler/timeout safe minimums)
 - integration tests for core monitoring flow, scheduler behavior, observability, reliability metrics, retry, and timeout handling
+- SQLite repository adapter (synchronous `sqlite3`, single-process safe access)
+- storage backend selection via env (`memory` or `sqlite`)
+- startup schema bootstrap for SQLite without external migration framework
+- efficient metrics counting via repository `count_probe_results()`
+- persistence tests validating data survives app restart on SQLite backend
 
 ## Active Focus
-Prepare persistent storage while preserving current monitoring, scheduler, and metrics contracts.
+Stabilize SQLite-backed operation while preserving existing API contracts.
 
 ## Architecture Snapshot
 Backend: FastAPI API with nodes/probes/results + scheduler control endpoints
-Database: not implemented (in-memory repository only)
+Database: optional SQLite adapter (`memory` fallback retained)
 Probes: synchronous TCP probe with automatic periodic execution
 
 ## Known Limitations
-- No persistent storage
 - Single-process in-memory state only
 - No distributed scheduler coordination
+- SQLite schema migration/versioning strategy not implemented yet
 
 ## Next Iteration Goal
-Add persistent storage for nodes and probe results without changing API contracts.
+Harden persistent storage operations and observability for long-running single-process deployments.
 
 ## Last Updated
-Iteration 5 closed
+Iteration 6 closed
