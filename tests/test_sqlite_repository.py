@@ -1,9 +1,11 @@
+import sqlite3
 from datetime import UTC, datetime
 
 from fastapi.testclient import TestClient
 
 from app.domain.models import ProbeResult
 from app.main import create_app
+from app.storage.sqlite_repository import SQLiteRepository
 
 
 def test_sqlite_storage_persists_data_across_app_restart(tmp_path, monkeypatch) -> None:
@@ -145,5 +147,73 @@ def test_sqlite_init_failure_fails_fast_with_clear_message(tmp_path) -> None:
             sqlite_path=str(db_dir),
         )
         assert False, 'Expected RuntimeError for SQLite init failure'
+    except RuntimeError as exc:
+        assert 'Failed to initialize SQLite repository' in str(exc)
+
+
+def test_sqlite_initialize_sets_schema_version_on_fresh_db(
+    tmp_path, monkeypatch
+) -> None:
+    db_path = tmp_path / 'netsentinel.sqlite3'
+    monkeypatch.setenv('NETSENTINEL_STORAGE_BACKEND', 'sqlite')
+    monkeypatch.setenv('NETSENTINEL_SQLITE_PATH', str(db_path))
+
+    app = create_app(scheduler_interval_s=60.0)
+    response = TestClient(app).get('/health')
+    assert response.status_code == 200
+
+    with sqlite3.connect(str(db_path)) as conn:
+        row = conn.execute('PRAGMA user_version').fetchone()
+    assert int(row[0]) == SQLiteRepository.SCHEMA_VERSION
+
+
+def test_sqlite_initialize_migrates_legacy_schema_version_zero(
+    tmp_path, monkeypatch
+) -> None:
+    db_path = tmp_path / 'netsentinel.sqlite3'
+    with sqlite3.connect(str(db_path)) as conn:
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS nodes (
+                node_id TEXT PRIMARY KEY,
+                name TEXT NOT NULL,
+                host TEXT NOT NULL,
+                port INTEGER NOT NULL,
+                region TEXT NOT NULL,
+                enabled INTEGER NOT NULL
+            )
+            """
+        )
+        conn.execute('PRAGMA user_version = 0')
+
+    monkeypatch.setenv('NETSENTINEL_STORAGE_BACKEND', 'sqlite')
+    monkeypatch.setenv('NETSENTINEL_SQLITE_PATH', str(db_path))
+
+    app = create_app(scheduler_interval_s=60.0)
+    response = TestClient(app).get('/health')
+    assert response.status_code == 200
+
+    with sqlite3.connect(str(db_path)) as conn:
+        row = conn.execute('PRAGMA user_version').fetchone()
+        migrated_index = conn.execute(
+            "SELECT name FROM sqlite_master WHERE type='index' AND name=?",
+            ('idx_nodes_host_port_region',),
+        ).fetchone()
+    assert int(row[0]) == SQLiteRepository.SCHEMA_VERSION
+    assert migrated_index is not None
+
+
+def test_sqlite_init_fails_on_future_schema_version(tmp_path) -> None:
+    db_path = tmp_path / 'netsentinel.sqlite3'
+    with sqlite3.connect(str(db_path)) as conn:
+        conn.execute('PRAGMA user_version = 999')
+
+    try:
+        create_app(
+            scheduler_interval_s=60.0,
+            storage_backend='sqlite',
+            sqlite_path=str(db_path),
+        )
+        assert False, 'Expected RuntimeError for unsupported SQLite schema version'
     except RuntimeError as exc:
         assert 'Failed to initialize SQLite repository' in str(exc)

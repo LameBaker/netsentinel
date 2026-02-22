@@ -1,7 +1,7 @@
 # Project State
 
 ## Current Phase
-Phase 1 - Monitoring MVP (Iteration 7 complete)
+Phase 1 - Monitoring MVP (Iteration 8 complete)
 
 ## System Status
 Backend foundation is now operational.
@@ -41,6 +41,11 @@ Core monitoring flow runs automatically with reliability controls and hardened S
 - duplicate node registration protection on SQLite with API response `409 Node already exists`
 - fail-fast app startup on SQLite initialization errors with explicit runtime message
 - health and metrics storage diagnostics (`storage`, `storage_path`, `last_repository_error`)
+- SQLite schema versioning via `PRAGMA user_version` (`SCHEMA_VERSION=1`)
+- linear startup migration path (`v0 -> v1`) with idempotent SQL
+- fail-fast guard for unsupported future SQLite schema versions
+- fail-fast guard for missing migration step definitions
+- migration tests for fresh DB versioning, legacy upgrade, and future-version rejection
 
 ## Active Focus
 Stabilize single-process SQLite operation while preserving existing API contracts.
@@ -53,11 +58,10 @@ Probes: synchronous TCP probe with automatic periodic execution
 ## Known Limitations
 - Single-process in-memory state only
 - No distributed scheduler coordination
-- SQLite schema migration/versioning strategy not implemented yet
 - No archival/export strategy beyond retention trimming
 
 ## Next Iteration Goal
-Introduce minimal schema versioning and startup compatibility checks for SQLite without external migration tooling.
+Add minimal data lifecycle controls for SQLite results (bounded retention defaults and deterministic pruning validation).
 
 ## Last Updated
-Iteration 7 closed (retention + repository hardening + observability updates)
+Iteration 8 closed (SQLite schema versioning + linear migrations + startup compatibility checks)

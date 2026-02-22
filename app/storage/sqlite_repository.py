@@ -13,6 +13,8 @@ from app.storage.repository import (
 
 
 class SQLiteRepository:
+    SCHEMA_VERSION = 1
+
     def __init__(self, db_path: str, retention_per_node: int = 0) -> None:
         self._db_path = db_path
         self._lock = threading.RLock()
@@ -24,43 +26,12 @@ class SQLiteRepository:
         db_file.parent.mkdir(parents=True, exist_ok=True)
 
         def init(conn: sqlite3.Connection) -> None:
-            conn.execute(
-                """
-                CREATE TABLE IF NOT EXISTS nodes (
-                    node_id TEXT PRIMARY KEY,
-                    name TEXT NOT NULL,
-                    host TEXT NOT NULL,
-                    port INTEGER NOT NULL,
-                    region TEXT NOT NULL,
-                    enabled INTEGER NOT NULL
+            version = self._get_schema_version(conn)
+            if version > self.SCHEMA_VERSION:
+                raise RepositoryUnavailableError(
+                    f'Unsupported SQLite schema version: {version}'
                 )
-                """
-            )
-            conn.execute(
-                """
-                CREATE TABLE IF NOT EXISTS probe_results (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    node_id TEXT NOT NULL,
-                    status TEXT NOT NULL,
-                    latency_ms REAL NOT NULL,
-                    checked_at TEXT NOT NULL,
-                    error TEXT,
-                    FOREIGN KEY(node_id) REFERENCES nodes(node_id)
-                )
-                """
-            )
-            conn.execute(
-                """
-                CREATE INDEX IF NOT EXISTS idx_probe_results_node_checked_at
-                ON probe_results(node_id, checked_at DESC)
-                """
-            )
-            conn.execute(
-                """
-                CREATE UNIQUE INDEX IF NOT EXISTS idx_nodes_host_port_region
-                ON nodes(host, port, region)
-                """
-            )
+            self._migrate_schema(conn, from_version=version)
 
         self._run_write(init)
 
@@ -201,6 +172,63 @@ class SQLiteRepository:
 
     def get_last_error(self) -> str | None:
         return self._last_error
+
+    def _get_schema_version(self, conn: sqlite3.Connection) -> int:
+        row = conn.execute('PRAGMA user_version').fetchone()
+        return int(row[0])
+
+    def _migrate_schema(self, conn: sqlite3.Connection, from_version: int) -> None:
+        version = from_version
+        while version < self.SCHEMA_VERSION:
+            next_version = version + 1
+            if next_version == 1:
+                self._migrate_to_v1(conn)
+            else:
+                raise RepositoryUnavailableError(
+                    f'Missing migration step to version {next_version}'
+                )
+            conn.execute(f'PRAGMA user_version = {next_version}')
+            version = next_version
+
+    @staticmethod
+    def _migrate_to_v1(conn: sqlite3.Connection) -> None:
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS nodes (
+                node_id TEXT PRIMARY KEY,
+                name TEXT NOT NULL,
+                host TEXT NOT NULL,
+                port INTEGER NOT NULL,
+                region TEXT NOT NULL,
+                enabled INTEGER NOT NULL
+            )
+            """
+        )
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS probe_results (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                node_id TEXT NOT NULL,
+                status TEXT NOT NULL,
+                latency_ms REAL NOT NULL,
+                checked_at TEXT NOT NULL,
+                error TEXT,
+                FOREIGN KEY(node_id) REFERENCES nodes(node_id)
+            )
+            """
+        )
+        conn.execute(
+            """
+            CREATE INDEX IF NOT EXISTS idx_probe_results_node_checked_at
+            ON probe_results(node_id, checked_at DESC)
+            """
+        )
+        conn.execute(
+            """
+            CREATE UNIQUE INDEX IF NOT EXISTS idx_nodes_host_port_region
+            ON nodes(host, port, region)
+            """
+        )
 
     def _connect(self) -> sqlite3.Connection:
         conn = sqlite3.connect(self._db_path, timeout=5.0)
