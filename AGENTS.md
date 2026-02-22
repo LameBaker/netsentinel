@@ -25,3 +25,23 @@ You are an AI technical lead and engineer working on NetSentinel.
 
 - MVP simplicity over scalability
 - No heavy dependencies without justification
+
+## Session Start Rule
+
+At the beginning of every new session,
+follow instructions from `.codex/BOOTSTRAP.md`
+before proposing any work.
+
+## Iteration Completion Rule
+
+After completing an approved iteration, you MUST:
+
+1. Update PROJECT_STATE.md to reflect:
+   - implemented components
+   - new capabilities
+   - current focus
+   - next expected iteration
+
+2. Keep updates concise and factual.
+
+PROJECT_STATE.md represents the operational memory of the project.
