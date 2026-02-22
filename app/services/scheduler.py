@@ -1,4 +1,5 @@
 import asyncio
+import logging
 import time
 from datetime import UTC, datetime
 
@@ -20,6 +21,7 @@ class MonitoringScheduler:
         self.successful_cycles = 0
         self.failed_cycles = 0
         self.consecutive_failures = 0
+        self._logger = logging.getLogger('netsentinel.scheduler')
 
     @property
     def running(self) -> bool:
@@ -45,6 +47,7 @@ class MonitoringScheduler:
     async def run_once(self) -> int:
         async with self._run_lock:
             started = time.perf_counter()
+            self._logger.info('cycle_start')
             try:
                 results = await asyncio.to_thread(run_probe_cycle, self.app, None)
                 self.last_cycle_duration_ms = round((time.perf_counter() - started) * 1000, 3)
@@ -52,12 +55,30 @@ class MonitoringScheduler:
                 self.last_error = None
                 self.successful_cycles += 1
                 self.consecutive_failures = 0
+                up_count = sum(1 for result in results if result.status == 'up')
+                down_count = len(results) - up_count
+                self._logger.info(
+                    'cycle_complete',
+                    extra={
+                        'duration_ms': self.last_cycle_duration_ms,
+                        'probed_nodes': len(results),
+                        'up_count': up_count,
+                        'down_count': down_count,
+                    },
+                )
                 return len(results)
             except Exception as exc:
                 self.last_cycle_duration_ms = round((time.perf_counter() - started) * 1000, 3)
                 self.last_error = str(exc)
                 self.failed_cycles += 1
                 self.consecutive_failures += 1
+                self._logger.error(
+                    'cycle_failed',
+                    extra={
+                        'duration_ms': self.last_cycle_duration_ms,
+                        'error': self.last_error,
+                    },
+                )
                 raise
 
     async def _loop(self) -> None:

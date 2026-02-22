@@ -98,3 +98,21 @@ def test_configure_logging_does_not_override_root_handlers() -> None:
     finally:
         root_logger.handlers = original_handlers
         root_logger.setLevel(original_level)
+
+
+def test_context_safe_formatter_includes_cycle_fields() -> None:
+    formatter = ContextSafeFormatter(
+        "%(probed_nodes)s %(up_count)s %(down_count)s %(error)s %(message)s"
+    )
+    record = logging.LogRecord(
+        name='netsentinel.scheduler',
+        level=logging.INFO,
+        pathname=__file__,
+        lineno=1,
+        msg='cycle_start',
+        args=(),
+        exc_info=None,
+    )
+
+    rendered = formatter.format(record)
+    assert rendered.startswith('- - - - cycle_start')

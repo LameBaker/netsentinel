@@ -9,6 +9,7 @@ from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 
 from app.api.health import router as health_router
+from app.api.metrics import router as metrics_router
 from app.api.nodes import router as nodes_router
 from app.api.probes import router as probes_router
 from app.api.scheduler import router as scheduler_router
@@ -51,6 +52,8 @@ def create_app(
             interval = 60.0
     if interval <= 0:
         interval = 60.0
+    elif interval < 1.0:
+        interval = 1.0
     timeout_s = probe_timeout_s
     if timeout_s is None:
         raw_timeout = os.getenv('NETSENTINEL_PROBE_TIMEOUT_S', '1.5')
@@ -60,6 +63,8 @@ def create_app(
             timeout_s = 1.5
     if timeout_s <= 0:
         timeout_s = 1.5
+    elif timeout_s < 0.1:
+        timeout_s = 0.1
     retry_count = probe_retry_count
     if retry_count is None:
         raw_retry = os.getenv('NETSENTINEL_PROBE_RETRY_COUNT', '0')
@@ -67,7 +72,7 @@ def create_app(
             retry_count = int(raw_retry)
         except ValueError:
             retry_count = 0
-    retry_count = max(0, retry_count)
+    retry_count = max(0, min(2, retry_count))
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
@@ -129,6 +134,7 @@ def create_app(
         return response
 
     app.include_router(health_router)
+    app.include_router(metrics_router)
     app.include_router(nodes_router)
     app.include_router(probes_router)
     app.include_router(scheduler_router)

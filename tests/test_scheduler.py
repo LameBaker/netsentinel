@@ -17,7 +17,7 @@ def test_scheduler_status_endpoint_reports_running() -> None:
     assert response.status_code == 200
     payload = response.json()
     assert payload['running'] is True
-    assert payload['interval_s'] == 0.2
+    assert payload['interval_s'] == 1.0
     assert payload['last_run'] is None
 
 
@@ -82,11 +82,11 @@ def test_scheduler_loop_runs_automatically_on_interval() -> None:
         deadline = time.time() + 1.5
         while time.time() < deadline:
             results_response = client.get('/results', params={'node_id': node['node_id']})
-            if len(results_response.json()) >= 2:
+            if len(results_response.json()) >= 1:
                 break
             time.sleep(0.05)
 
-        assert len(results_response.json()) >= 2
+        assert len(results_response.json()) >= 1
 
 
 def test_scheduler_stop_is_fast_even_with_large_interval() -> None:
@@ -198,3 +198,90 @@ def test_scheduler_failure_counters_increment_on_cycle_error() -> None:
         assert payload['failed_cycles'] >= 1
         assert payload['consecutive_failures'] >= 1
         assert payload['last_error'] is not None
+
+
+def test_scheduler_logs_cycle_complete() -> None:
+    app = create_app(scheduler_interval_s=60.0)
+    seen_messages: list[str] = []
+
+    def fake_probe(node) -> ProbeResult:
+        return ProbeResult(
+            node_id=node.node_id,
+            status='up',
+            latency_ms=5.0,
+            checked_at=datetime.now(UTC),
+        )
+
+    original_info = app.state.scheduler._logger.info
+
+    def capture_info(message, *args, **kwargs):
+        seen_messages.append(message)
+        return original_info(message, *args, **kwargs)
+
+    app.state.probe_node = fake_probe
+    app.state.scheduler._logger.info = capture_info
+    with TestClient(app) as client:
+        client.post(
+            '/nodes',
+            json={
+                'name': 'log-node',
+                'host': '127.0.0.1',
+                'port': 443,
+                'region': 'us',
+            },
+        )
+        response = client.post('/scheduler/run-once')
+        assert response.status_code == 200
+
+    assert 'cycle_start' in seen_messages
+    assert 'cycle_complete' in seen_messages
+
+
+def test_scheduler_logs_cycle_failed() -> None:
+    app = create_app(scheduler_interval_s=60.0)
+    seen_messages: list[str] = []
+
+    class FailingRepository:
+        def list_enabled_nodes(self):
+            raise RuntimeError('repo failure')
+
+    original_info = app.state.scheduler._logger.info
+    original_error = app.state.scheduler._logger.error
+
+    def capture_info(message, *args, **kwargs):
+        seen_messages.append(message)
+        return original_info(message, *args, **kwargs)
+
+    def capture_error(message, *args, **kwargs):
+        seen_messages.append(message)
+        return original_error(message, *args, **kwargs)
+
+    app.state.repository = FailingRepository()
+    app.state.scheduler._logger.info = capture_info
+    app.state.scheduler._logger.error = capture_error
+    with TestClient(app, raise_server_exceptions=False) as client:
+        response = client.post('/scheduler/run-once')
+        assert response.status_code == 500
+
+    assert 'cycle_start' in seen_messages
+    assert 'cycle_failed' in seen_messages
+
+
+def test_retry_count_is_clamped_to_safe_range(monkeypatch) -> None:
+    monkeypatch.setenv('NETSENTINEL_PROBE_RETRY_COUNT', '99')
+    app = create_app()
+    assert app.state.probe_retry_count == 2
+
+
+def test_scheduler_interval_and_probe_timeout_are_clamped_to_safe_minimums(monkeypatch) -> None:
+    monkeypatch.setenv('NETSENTINEL_SCHEDULER_INTERVAL_S', '0.1')
+    monkeypatch.setenv('NETSENTINEL_PROBE_TIMEOUT_S', '0.01')
+    app = create_app()
+    assert app.state.scheduler.interval_s == 1.0
+    assert app.state.probe_timeout_s == 0.1
+
+
+def test_explicit_scheduler_interval_and_timeout_are_also_clamped() -> None:
+    app = create_app(scheduler_interval_s=0.2, probe_timeout_s=0.01)
+    assert app.state.scheduler.interval_s == 1.0
+    assert app.state.probe_timeout_s == 0.1

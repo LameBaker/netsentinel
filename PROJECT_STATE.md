@@ -1,11 +1,11 @@
 # Project State
 
 ## Current Phase
-Phase 1 - Monitoring MVP (Iteration 4 complete)
+Phase 1 - Monitoring MVP (Iteration 5 complete)
 
 ## System Status
 Backend foundation is now operational.
-Core monitoring flow runs automatically with reliability controls and in-memory storage.
+Core monitoring flow runs automatically with reliability controls and operational observability in-memory.
 
 ## Implemented Capabilities
 - project structure
@@ -27,10 +27,13 @@ Core monitoring flow runs automatically with reliability controls and in-memory 
 - scheduler safety controls (fast stop via cancel, serialized run cycle, validated env parsing)
 - deterministic probe retry support (`probe_retry_count`, immediate retry only)
 - scheduler reliability metrics (`successful_cycles`, `failed_cycles`, `consecutive_failures`, `last_cycle_duration_ms`)
-- integration tests for core monitoring flow, scheduler behavior, reliability metrics, retry, and timeout handling
+- internal metrics endpoint (`GET /metrics`) for runtime counters and scheduler health
+- structured scheduler cycle logs (`cycle_start`, `cycle_complete`, `cycle_failed`) with cycle fields
+- guardrails for runtime config (`probe_retry_count` clamp, scheduler/timeout safe minimums)
+- integration tests for core monitoring flow, scheduler behavior, observability, reliability metrics, retry, and timeout handling
 
 ## Active Focus
-Prepare persistent storage while preserving current monitoring and scheduler contracts.
+Prepare persistent storage while preserving current monitoring, scheduler, and metrics contracts.
 
 ## Architecture Snapshot
 Backend: FastAPI API with nodes/probes/results + scheduler control endpoints
@@ -46,4 +49,4 @@ Probes: synchronous TCP probe with automatic periodic execution
 Add persistent storage for nodes and probe results without changing API contracts.
 
 ## Last Updated
-Iteration 4 closed
+Iteration 5 closed

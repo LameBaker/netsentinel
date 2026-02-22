@@ -10,6 +10,10 @@ class ContextSafeFormatter(logging.Formatter):
         'path': '-',
         'status_code': '-',
         'duration_ms': '-',
+        'probed_nodes': '-',
+        'up_count': '-',
+        'down_count': '-',
+        'error': '-',
     }
 
     def format(self, record: logging.LogRecord) -> str:
@@ -24,7 +28,9 @@ def configure_logging() -> None:
     fmt = (
         '%(asctime)s %(levelname)s %(name)s '
         'request_id=%(request_id)s method=%(method)s path=%(path)s '
-        'status_code=%(status_code)s duration_ms=%(duration_ms)s message=%(message)s'
+        'status_code=%(status_code)s duration_ms=%(duration_ms)s '
+        'probed_nodes=%(probed_nodes)s up_count=%(up_count)s down_count=%(down_count)s '
+        'error=%(error)s message=%(message)s'
     )
     formatter = ContextSafeFormatter(fmt)
     logger = logging.getLogger('netsentinel')
