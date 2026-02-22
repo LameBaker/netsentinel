@@ -5,8 +5,7 @@ from app.domain.models import ProbeResult, ProbeRunRequest, ProbeRunResponse, Re
 router = APIRouter(tags=['probes'])
 
 
-def _resolve_targets(request: Request, node_id: str | None) -> list[RegisteredNode]:
-    repository = request.app.state.repository
+def _resolve_targets(repository, node_id: str | None) -> list[RegisteredNode]:
     if node_id is None:
         return repository.list_enabled_nodes()
 
@@ -16,19 +15,23 @@ def _resolve_targets(request: Request, node_id: str | None) -> list[RegisteredNo
     return [node]
 
 
-@router.post('/probes/run', response_model=ProbeRunResponse)
-def run_probe(request: Request, payload: ProbeRunRequest | None = None) -> ProbeRunResponse:
-    repository = request.app.state.repository
-    probe_node = request.app.state.probe_node
-    node_id = None if payload is None else payload.node_id
-    targets = _resolve_targets(request, node_id)
+def run_probe_cycle(app, node_id: str | None) -> list[ProbeResult]:
+    repository = app.state.repository
+    probe_node = app.state.probe_node
+    targets = _resolve_targets(repository, node_id)
 
     results: list[ProbeResult] = []
     for node in targets:
         result = probe_node(node)
         repository.add_probe_result(result)
         results.append(result)
+    return results
 
+
+@router.post('/probes/run', response_model=ProbeRunResponse)
+def run_probe(request: Request, payload: ProbeRunRequest | None = None) -> ProbeRunResponse:
+    node_id = None if payload is None else payload.node_id
+    results = run_probe_cycle(request.app, node_id)
     return ProbeRunResponse(results=results)
 
 

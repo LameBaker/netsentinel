@@ -1,11 +1,11 @@
 # Project State
 
 ## Current Phase
-Phase 1 - Monitoring MVP (Iteration 2 complete)
+Phase 1 - Monitoring MVP (Iteration 3 complete)
 
 ## System Status
 Backend foundation is now operational.
-Core monitoring flow is now operational via API with in-memory storage.
+Core monitoring flow runs automatically via in-process scheduler with in-memory storage.
 
 ## Implemented Capabilities
 - project structure
@@ -22,23 +22,26 @@ Core monitoring flow is now operational via API with in-memory storage.
 - probe execution endpoint (`POST /probes/run`) for one node or all enabled nodes
 - result retrieval endpoint (`GET /results`) with `node_id` and `limit` filters (latest by `checked_at`)
 - TCP probe service for availability and latency measurement
-- integration tests for core monitoring flow plus baseline health/logging/model tests
+- in-process monitoring scheduler loop with startup/shutdown lifecycle control
+- scheduler control endpoints (`GET /scheduler/status`, `POST /scheduler/run-once`)
+- scheduler safety controls (fast stop via cancel, serialized run cycle, env fallback for interval parsing)
+- integration tests for core monitoring flow, scheduler behavior, and baseline health/logging/model tests
 
 ## Active Focus
-Stabilize monitoring API behavior and prepare persistent result storage.
+Prepare persistent storage while preserving current API and scheduler behavior.
 
 ## Architecture Snapshot
-Backend: FastAPI API with nodes/probes/results flow
+Backend: FastAPI API with nodes/probes/results + scheduler control endpoints
 Database: not implemented (in-memory repository only)
-Probes: synchronous TCP probe implemented
+Probes: synchronous TCP probe with automatic periodic execution
 
 ## Known Limitations
 - No persistent storage
-- No background/scheduled probing
 - Single-process in-memory state only
+- No distributed scheduler coordination
 
 ## Next Iteration Goal
-Add persistent result storage and keep the same node/probe API contracts.
+Add persistent storage for nodes and probe results without changing API contracts.
 
 ## Last Updated
-Iteration 2 closed (post-review fixes applied)
+Iteration 3 closed

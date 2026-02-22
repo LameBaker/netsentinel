@@ -1,5 +1,7 @@
 import logging
+import os
 import time
+from contextlib import asynccontextmanager
 from datetime import UTC, datetime
 from uuid import uuid4
 
@@ -9,8 +11,10 @@ from fastapi.responses import JSONResponse
 from app.api.health import router as health_router
 from app.api.nodes import router as nodes_router
 from app.api.probes import router as probes_router
+from app.api.scheduler import router as scheduler_router
 from app.core.logging import configure_logging
 from app.services.prober import tcp_probe
+from app.services.scheduler import MonitoringScheduler
 from app.storage.repository import InMemoryRepository
 
 SERVICE_NAME = 'netsentinel'
@@ -32,14 +36,31 @@ class RequestContextAdapter(logging.LoggerAdapter):
         return msg, kwargs
 
 
-def create_app() -> FastAPI:
+def create_app(scheduler_interval_s: float | None = None) -> FastAPI:
     configure_logging()
-    app = FastAPI(title='NetSentinel API', version=SERVICE_VERSION)
+    interval = scheduler_interval_s
+    if interval is None:
+        raw_interval = os.getenv('NETSENTINEL_SCHEDULER_INTERVAL_S', '60')
+        try:
+            interval = float(raw_interval)
+        except ValueError:
+            interval = 60.0
+
+    @asynccontextmanager
+    async def lifespan(app: FastAPI):
+        await app.state.scheduler.start()
+        try:
+            yield
+        finally:
+            await app.state.scheduler.stop()
+
+    app = FastAPI(title='NetSentinel API', version=SERVICE_VERSION, lifespan=lifespan)
     app.state.service_name = SERVICE_NAME
     app.state.version = SERVICE_VERSION
     app.state.started_at = datetime.now(UTC)
     app.state.repository = InMemoryRepository()
     app.state.probe_node = tcp_probe
+    app.state.scheduler = MonitoringScheduler(app, interval)
 
     logger = RequestContextAdapter(logging.getLogger('netsentinel.http'), {})
 
@@ -85,6 +106,7 @@ def create_app() -> FastAPI:
     app.include_router(health_router)
     app.include_router(nodes_router)
     app.include_router(probes_router)
+    app.include_router(scheduler_router)
     return app
 
 
