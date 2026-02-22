@@ -36,7 +36,11 @@ class RequestContextAdapter(logging.LoggerAdapter):
         return msg, kwargs
 
 
-def create_app(scheduler_interval_s: float | None = None) -> FastAPI:
+def create_app(
+    scheduler_interval_s: float | None = None,
+    probe_timeout_s: float | None = None,
+    probe_retry_count: int | None = None,
+) -> FastAPI:
     configure_logging()
     interval = scheduler_interval_s
     if interval is None:
@@ -45,6 +49,25 @@ def create_app(scheduler_interval_s: float | None = None) -> FastAPI:
             interval = float(raw_interval)
         except ValueError:
             interval = 60.0
+    if interval <= 0:
+        interval = 60.0
+    timeout_s = probe_timeout_s
+    if timeout_s is None:
+        raw_timeout = os.getenv('NETSENTINEL_PROBE_TIMEOUT_S', '1.5')
+        try:
+            timeout_s = float(raw_timeout)
+        except ValueError:
+            timeout_s = 1.5
+    if timeout_s <= 0:
+        timeout_s = 1.5
+    retry_count = probe_retry_count
+    if retry_count is None:
+        raw_retry = os.getenv('NETSENTINEL_PROBE_RETRY_COUNT', '0')
+        try:
+            retry_count = int(raw_retry)
+        except ValueError:
+            retry_count = 0
+    retry_count = max(0, retry_count)
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
@@ -59,7 +82,9 @@ def create_app(scheduler_interval_s: float | None = None) -> FastAPI:
     app.state.version = SERVICE_VERSION
     app.state.started_at = datetime.now(UTC)
     app.state.repository = InMemoryRepository()
-    app.state.probe_node = tcp_probe
+    app.state.probe_timeout_s = timeout_s
+    app.state.probe_retry_count = retry_count
+    app.state.probe_node = lambda node: tcp_probe(node, timeout_s=app.state.probe_timeout_s)
     app.state.scheduler = MonitoringScheduler(app, interval)
 
     logger = RequestContextAdapter(logging.getLogger('netsentinel.http'), {})

@@ -1,4 +1,5 @@
 import asyncio
+import time
 from datetime import UTC, datetime
 
 from fastapi import FastAPI
@@ -15,6 +16,10 @@ class MonitoringScheduler:
         self._run_lock = asyncio.Lock()
         self.last_run: datetime | None = None
         self.last_error: str | None = None
+        self.last_cycle_duration_ms: float | None = None
+        self.successful_cycles = 0
+        self.failed_cycles = 0
+        self.consecutive_failures = 0
 
     @property
     def running(self) -> bool:
@@ -39,13 +44,20 @@ class MonitoringScheduler:
 
     async def run_once(self) -> int:
         async with self._run_lock:
+            started = time.perf_counter()
             try:
                 results = await asyncio.to_thread(run_probe_cycle, self.app, None)
+                self.last_cycle_duration_ms = round((time.perf_counter() - started) * 1000, 3)
                 self.last_run = datetime.now(UTC)
                 self.last_error = None
+                self.successful_cycles += 1
+                self.consecutive_failures = 0
                 return len(results)
             except Exception as exc:
+                self.last_cycle_duration_ms = round((time.perf_counter() - started) * 1000, 3)
                 self.last_error = str(exc)
+                self.failed_cycles += 1
+                self.consecutive_failures += 1
                 raise
 
     async def _loop(self) -> None:

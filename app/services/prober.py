@@ -16,6 +16,15 @@ def tcp_probe(node: RegisteredNode, timeout_s: float = 1.5) -> ProbeResult:
                 latency_ms=latency_ms,
                 checked_at=datetime.now(UTC),
             )
+    except socket.timeout:
+        latency_ms = round((time.perf_counter() - started) * 1000, 3)
+        return ProbeResult(
+            node_id=node.node_id,
+            status='down',
+            latency_ms=latency_ms,
+            checked_at=datetime.now(UTC),
+            error='timeout',
+        )
     except OSError as exc:
         latency_ms = round((time.perf_counter() - started) * 1000, 3)
         return ProbeResult(

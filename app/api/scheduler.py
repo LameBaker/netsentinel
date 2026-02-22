@@ -11,6 +11,10 @@ def scheduler_status(request: Request) -> dict[str, object]:
         'interval_s': scheduler.interval_s,
         'last_run': None if scheduler.last_run is None else scheduler.last_run.isoformat(),
         'last_error': scheduler.last_error,
+        'last_cycle_duration_ms': scheduler.last_cycle_duration_ms,
+        'successful_cycles': scheduler.successful_cycles,
+        'failed_cycles': scheduler.failed_cycles,
+        'consecutive_failures': scheduler.consecutive_failures,
     }
 
 

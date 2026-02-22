@@ -136,3 +136,65 @@ def test_invalid_scheduler_interval_env_falls_back_to_default(monkeypatch) -> No
     monkeypatch.setenv('NETSENTINEL_SCHEDULER_INTERVAL_S', 'not-a-number')
     app = create_app()
     assert app.state.scheduler.interval_s == 60.0
+
+
+def test_non_positive_scheduler_interval_env_falls_back_to_default(monkeypatch) -> None:
+    monkeypatch.setenv('NETSENTINEL_SCHEDULER_INTERVAL_S', '0')
+    app = create_app()
+    assert app.state.scheduler.interval_s == 60.0
+
+
+def test_scheduler_status_includes_reliability_counters() -> None:
+    app = create_app(scheduler_interval_s=60.0)
+
+    def fake_probe(node) -> ProbeResult:
+        return ProbeResult(
+            node_id=node.node_id,
+            status='up',
+            latency_ms=5.0,
+            checked_at=datetime.now(UTC),
+        )
+
+    app.state.probe_node = fake_probe
+
+    with TestClient(app) as client:
+        client.post(
+            '/nodes',
+            json={
+                'name': 'counter-node',
+                'host': '127.0.0.1',
+                'port': 443,
+                'region': 'us',
+            },
+        )
+        run_response = client.post('/scheduler/run-once')
+        assert run_response.status_code == 200
+
+        status_response = client.get('/scheduler/status')
+        assert status_response.status_code == 200
+        payload = status_response.json()
+        assert payload['successful_cycles'] >= 1
+        assert payload['failed_cycles'] == 0
+        assert payload['consecutive_failures'] == 0
+        assert payload['last_cycle_duration_ms'] is not None
+
+
+def test_scheduler_failure_counters_increment_on_cycle_error() -> None:
+    app = create_app(scheduler_interval_s=60.0)
+
+    class FailingRepository:
+        def list_enabled_nodes(self):
+            raise RuntimeError('repository unavailable')
+
+    app.state.repository = FailingRepository()
+
+    with TestClient(app, raise_server_exceptions=False) as client:
+        run_response = client.post('/scheduler/run-once')
+        assert run_response.status_code == 500
+
+        status_response = client.get('/scheduler/status')
+        assert status_response.status_code == 200
+        payload = status_response.json()
+        assert payload['failed_cycles'] >= 1
+        assert payload['consecutive_failures'] >= 1
+        assert payload['last_error'] is not None

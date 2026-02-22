@@ -18,11 +18,17 @@ def _resolve_targets(repository, node_id: str | None) -> list[RegisteredNode]:
 def run_probe_cycle(app, node_id: str | None) -> list[ProbeResult]:
     repository = app.state.repository
     probe_node = app.state.probe_node
+    retry_count = getattr(app.state, 'probe_retry_count', 0)
     targets = _resolve_targets(repository, node_id)
 
     results: list[ProbeResult] = []
     for node in targets:
-        result = probe_node(node)
+        attempt = 0
+        while True:
+            result = probe_node(node)
+            if result.status == 'up' or attempt >= retry_count:
+                break
+            attempt += 1
         repository.add_probe_result(result)
         results.append(result)
     return results

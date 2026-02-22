@@ -220,3 +220,78 @@ def test_results_limit_uses_checked_at_not_insertion_order() -> None:
     payload = response.json()
     assert len(payload) == 1
     assert payload[0]['latency_ms'] == 10.0
+
+
+def test_probe_retry_succeeds_on_second_attempt_when_enabled() -> None:
+    app = create_app(scheduler_interval_s=60.0, probe_retry_count=1)
+    calls = {'count': 0}
+
+    def flaky_probe(node) -> ProbeResult:
+        calls['count'] += 1
+        if calls['count'] == 1:
+            return ProbeResult(
+                node_id=node.node_id,
+                status='down',
+                latency_ms=1.0,
+                checked_at=datetime.now(UTC),
+                error='connection_refused',
+            )
+        return ProbeResult(
+            node_id=node.node_id,
+            status='up',
+            latency_ms=2.0,
+            checked_at=datetime.now(UTC),
+        )
+
+    app.state.probe_node = flaky_probe
+    client = TestClient(app)
+
+    node = client.post(
+        '/nodes',
+        json={
+            'name': 'retry-node',
+            'host': '127.0.0.1',
+            'port': 443,
+            'region': 'us',
+        },
+    ).json()
+
+    response = client.post('/probes/run', json={'node_id': node['node_id']})
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload['results'][0]['status'] == 'up'
+    assert calls['count'] == 2
+
+
+def test_probe_retry_returns_down_after_retries_exhausted() -> None:
+    app = create_app(scheduler_interval_s=60.0, probe_retry_count=1)
+    calls = {'count': 0}
+
+    def always_down_probe(node) -> ProbeResult:
+        calls['count'] += 1
+        return ProbeResult(
+            node_id=node.node_id,
+            status='down',
+            latency_ms=1.0,
+            checked_at=datetime.now(UTC),
+            error='connection_refused',
+        )
+
+    app.state.probe_node = always_down_probe
+    client = TestClient(app)
+
+    node = client.post(
+        '/nodes',
+        json={
+            'name': 'retry-down-node',
+            'host': '127.0.0.1',
+            'port': 443,
+            'region': 'us',
+        },
+    ).json()
+
+    response = client.post('/probes/run', json={'node_id': node['node_id']})
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload['results'][0]['status'] == 'down'
+    assert calls['count'] == 2
