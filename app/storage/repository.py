@@ -5,6 +5,18 @@ from uuid import uuid4
 from app.domain.models import Node, ProbeResult, RegisteredNode
 
 
+class RepositoryError(Exception):
+    """Base repository error."""
+
+
+class RepositoryDuplicateError(RepositoryError):
+    """Entity already exists."""
+
+
+class RepositoryUnavailableError(RepositoryError):
+    """Repository backend unavailable."""
+
+
 class Repository(Protocol):
     def add_node(self, node: Node) -> RegisteredNode:
         ...
@@ -27,6 +39,9 @@ class Repository(Protocol):
         ...
 
     def count_probe_results(self) -> int:
+        ...
+
+    def get_last_error(self) -> str | None:
         ...
 
 
@@ -70,3 +85,6 @@ class InMemoryRepository:
 
     def count_probe_results(self) -> int:
         return len(self._results)
+
+    def get_last_error(self) -> str | None:
+        return None

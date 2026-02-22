@@ -45,6 +45,9 @@ def test_metrics_endpoint_contract_and_values() -> None:
         assert payload['scheduler']['failed_cycles'] == 0
         assert payload['scheduler']['consecutive_failures'] == 0
         assert payload['scheduler']['last_cycle_duration_ms'] is not None
+        assert payload['storage'] in ('memory', 'sqlite')
+        assert isinstance(payload['storage_path'], str)
+        assert payload['last_repository_error'] is None
         assert payload['service'] == 'netsentinel'
         assert payload['version']
         assert node['node_id']

@@ -16,3 +16,6 @@ def test_health_endpoint_contract() -> None:
     assert isinstance(payload['version'], str)
     assert isinstance(payload['timestamp'], str)
     assert isinstance(payload['uptime_s'], float)
+    assert payload['storage'] in ('memory', 'sqlite')
+    assert isinstance(payload['storage_path'], str)
+    assert payload['last_repository_error'] is None

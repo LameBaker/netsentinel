@@ -16,4 +16,7 @@ def health(request: Request) -> dict[str, object]:
         'version': app_state.version,
         'timestamp': datetime.now(UTC).isoformat(),
         'uptime_s': round(uptime_seconds, 3),
+        'storage': app_state.storage_backend,
+        'storage_path': app_state.storage_path_display,
+        'last_repository_error': app_state.repository.get_last_error(),
     }

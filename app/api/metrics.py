@@ -19,6 +19,9 @@ def metrics(request: Request) -> dict[str, object]:
     return {
         'service': app_state.service_name,
         'version': app_state.version,
+        'storage': app_state.storage_backend,
+        'storage_path': app_state.storage_path_display,
+        'last_repository_error': repository.get_last_error(),
         'uptime_s': round(uptime_seconds, 3),
         'nodes_total': nodes_total,
         'nodes_enabled': nodes_enabled,

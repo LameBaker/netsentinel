@@ -60,3 +60,90 @@ def test_storage_backend_defaults_to_memory_for_unknown_value(monkeypatch) -> No
 
     response = TestClient(app).get('/health')
     assert response.status_code == 200
+
+
+def test_sqlite_duplicate_node_registration_returns_409(tmp_path, monkeypatch) -> None:
+    db_path = tmp_path / 'netsentinel.sqlite3'
+    monkeypatch.setenv('NETSENTINEL_STORAGE_BACKEND', 'sqlite')
+    monkeypatch.setenv('NETSENTINEL_SQLITE_PATH', str(db_path))
+
+    app = create_app(scheduler_interval_s=60.0)
+    with TestClient(app) as client:
+        first = client.post(
+            '/nodes',
+            json={
+                'name': 'dup-node-1',
+                'host': '127.0.0.1',
+                'port': 443,
+                'region': 'us',
+            },
+        )
+        assert first.status_code == 201
+
+        duplicate = client.post(
+            '/nodes',
+            json={
+                'name': 'dup-node-2',
+                'host': '127.0.0.1',
+                'port': 443,
+                'region': 'us',
+            },
+        )
+        assert duplicate.status_code == 409
+        assert duplicate.json()['detail'] == 'Node already exists'
+
+
+def test_sqlite_retention_keeps_latest_results_per_node(tmp_path, monkeypatch) -> None:
+    db_path = tmp_path / 'netsentinel.sqlite3'
+    monkeypatch.setenv('NETSENTINEL_STORAGE_BACKEND', 'sqlite')
+    monkeypatch.setenv('NETSENTINEL_SQLITE_PATH', str(db_path))
+    monkeypatch.setenv('NETSENTINEL_RESULT_RETENTION_PER_NODE', '1')
+
+    app = create_app(scheduler_interval_s=60.0)
+    call = {'n': 0}
+
+    def fake_probe(node) -> ProbeResult:
+        call['n'] += 1
+        return ProbeResult(
+            node_id=node.node_id,
+            status='up',
+            latency_ms=float(call['n']),
+            checked_at=datetime.now(UTC),
+        )
+
+    app.state.probe_node = fake_probe
+
+    with TestClient(app) as client:
+        node = client.post(
+            '/nodes',
+            json={
+                'name': 'ret-node',
+                'host': '127.0.0.1',
+                'port': 443,
+                'region': 'us',
+            },
+        ).json()
+
+        client.post('/probes/run', json={'node_id': node['node_id']})
+        client.post('/probes/run', json={'node_id': node['node_id']})
+
+        results_response = client.get('/results', params={'node_id': node['node_id']})
+        assert results_response.status_code == 200
+        results = results_response.json()
+        assert len(results) == 1
+        assert results[0]['latency_ms'] == 2.0
+
+
+def test_sqlite_init_failure_fails_fast_with_clear_message(tmp_path) -> None:
+    db_dir = tmp_path / 'dbdir'
+    db_dir.mkdir()
+
+    try:
+        create_app(
+            scheduler_interval_s=60.0,
+            storage_backend='sqlite',
+            sqlite_path=str(db_dir),
+        )
+        assert False, 'Expected RuntimeError for SQLite init failure'
+    except RuntimeError as exc:
+        assert 'Failed to initialize SQLite repository' in str(exc)

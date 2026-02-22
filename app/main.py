@@ -3,6 +3,7 @@ import os
 import time
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime
+from pathlib import Path
 from uuid import uuid4
 
 from fastapi import FastAPI, Request
@@ -16,7 +17,7 @@ from app.api.scheduler import router as scheduler_router
 from app.core.logging import configure_logging
 from app.services.prober import tcp_probe
 from app.services.scheduler import MonitoringScheduler
-from app.storage.repository import InMemoryRepository
+from app.storage.repository import InMemoryRepository, RepositoryUnavailableError
 from app.storage.sqlite_repository import SQLiteRepository
 
 SERVICE_NAME = 'netsentinel'
@@ -44,6 +45,7 @@ def create_app(
     probe_retry_count: int | None = None,
     storage_backend: str | None = None,
     sqlite_path: str | None = None,
+    result_retention_per_node: int | None = None,
 ) -> FastAPI:
     configure_logging()
     interval = scheduler_interval_s
@@ -78,6 +80,14 @@ def create_app(
     retry_count = max(0, min(2, retry_count))
     backend = storage_backend or os.getenv('NETSENTINEL_STORAGE_BACKEND', 'memory')
     db_path = sqlite_path or os.getenv('NETSENTINEL_SQLITE_PATH', './netsentinel.sqlite3')
+    retention = result_retention_per_node
+    if retention is None:
+        raw_retention = os.getenv('NETSENTINEL_RESULT_RETENTION_PER_NODE', '0')
+        try:
+            retention = int(raw_retention)
+        except ValueError:
+            retention = 0
+    retention = max(0, retention)
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
@@ -91,9 +101,18 @@ def create_app(
     app.state.service_name = SERVICE_NAME
     app.state.version = SERVICE_VERSION
     app.state.started_at = datetime.now(UTC)
+    app.state.storage_backend = backend if backend == 'sqlite' else 'memory'
+    app.state.storage_path_display = (
+        Path(db_path).name if app.state.storage_backend == 'sqlite' else 'memory'
+    )
     if backend == 'sqlite':
-        app.state.repository = SQLiteRepository(db_path)
-        app.state.repository.initialize()
+        app.state.repository = SQLiteRepository(db_path, retention_per_node=retention)
+        try:
+            app.state.repository.initialize()
+        except RepositoryUnavailableError as exc:
+            raise RuntimeError(
+                f'Failed to initialize SQLite repository at {db_path}'
+            ) from exc
     else:
         app.state.repository = InMemoryRepository()
     app.state.probe_timeout_s = timeout_s

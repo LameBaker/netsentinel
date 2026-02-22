@@ -1,11 +1,11 @@
 # Project State
 
 ## Current Phase
-Phase 1 - Monitoring MVP (Iteration 6 complete)
+Phase 1 - Monitoring MVP (Iteration 7 complete)
 
 ## System Status
 Backend foundation is now operational.
-Core monitoring flow runs automatically with reliability controls and persistent storage option.
+Core monitoring flow runs automatically with reliability controls and hardened SQLite persistence behavior.
 
 ## Implemented Capabilities
 - project structure
@@ -36,9 +36,14 @@ Core monitoring flow runs automatically with reliability controls and persistent
 - startup schema bootstrap for SQLite without external migration framework
 - efficient metrics counting via repository `count_probe_results()`
 - persistence tests validating data survives app restart on SQLite backend
+- SQLite retention policy per node (`NETSENTINEL_RESULT_RETENTION_PER_NODE`, deterministic keep-latest)
+- localized repository error mapping for SQLite (`duplicate`, `unavailable`) with lock-retry guard
+- duplicate node registration protection on SQLite with API response `409 Node already exists`
+- fail-fast app startup on SQLite initialization errors with explicit runtime message
+- health and metrics storage diagnostics (`storage`, `storage_path`, `last_repository_error`)
 
 ## Active Focus
-Stabilize SQLite-backed operation while preserving existing API contracts.
+Stabilize single-process SQLite operation while preserving existing API contracts.
 
 ## Architecture Snapshot
 Backend: FastAPI API with nodes/probes/results + scheduler control endpoints
@@ -49,9 +54,10 @@ Probes: synchronous TCP probe with automatic periodic execution
 - Single-process in-memory state only
 - No distributed scheduler coordination
 - SQLite schema migration/versioning strategy not implemented yet
+- No archival/export strategy beyond retention trimming
 
 ## Next Iteration Goal
-Harden persistent storage operations and observability for long-running single-process deployments.
+Introduce minimal schema versioning and startup compatibility checks for SQLite without external migration tooling.
 
 ## Last Updated
-Iteration 6 closed (final review fixes applied)
+Iteration 7 closed (retention + repository hardening + observability updates)
