@@ -1,9 +1,10 @@
 # Current Iteration
 
 Goal:
-Bootstrap backend service.
+Implement node registration and TCP probe baseline.
 
 Tasks:
-- create FastAPI app
-- define data models
-- implement health endpoint
+- add node registration endpoint
+- add TCP connectivity probe execution service
+- persist probe results via repository abstraction
+- add tests for registration and probe flow

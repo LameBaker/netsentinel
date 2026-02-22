@@ -60,10 +60,50 @@ See `ROADMAP.md` for details.
 
 ## ⚙️ Project Status
 
-Early bootstrap phase.
+Iteration 1 baseline implemented.
 
-The repository currently contains project structure and AI workflow configuration.
-Application code will evolve iteratively.
+Current backend capabilities:
+- FastAPI application bootstrap
+- `/health` endpoint with runtime metadata
+- request logging middleware with request ID propagation
+- domain models for `Node` and `ProbeResult`
+- in-memory repository abstraction
+- baseline pytest suite
+
+## 🛠️ Local Run
+
+1. Create virtual environment:
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+```
+
+2. Install dependencies:
+
+```bash
+python3 -m pip install -e ".[dev]"
+```
+
+3. Run API:
+
+```bash
+uvicorn app.main:app --reload
+```
+
+4. Check health endpoint:
+
+```bash
+curl http://127.0.0.1:8000/health
+```
+
+## ✅ Testing
+
+Run test suite:
+
+```bash
+pytest
+```
 
 ---
 
