@@ -20,3 +20,18 @@ env/
 *.log
 # Build artifacts
 *.egg-info/
+
+# Runtime database and local state
+*.sqlite
+*.sqlite3
+*.sqlite3-wal
+*.sqlite3-shm
+*.db
+*.db-wal
+*.db-shm
+data/
+.data/
+local_data/
+.local_data/
+state/
+.state/
