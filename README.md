@@ -60,19 +60,16 @@ See `ROADMAP.md` for details.
 
 ## ⚙️ Project Status
 
-Iteration 2 core monitoring flow implemented.
+Iteration 10 (local Docker runtime) completed.
 
-Current backend capabilities:
-- FastAPI application bootstrap
-- `/health` endpoint with runtime metadata
-- request logging middleware with request ID propagation
-- node registration API: `POST /nodes`, `GET /nodes`
-- probe execution API: `POST /probes/run`
-- probe results API: `GET /results?node_id=...&limit=...`
-- domain models for nodes and probe results
-- TCP connectivity probe with latency measurement
-- in-memory repository abstraction
-- baseline pytest suite
+Current runtime capabilities include:
+- FastAPI monitoring API with in-process scheduler
+- SQLite-backed persistence option with probe history and summary endpoint
+- structured logs to stdout/stderr
+- local container runtime via Dockerfile + docker-compose
+- `/health`-based container healthcheck and persistent Docker volume for SQLite
+
+For detailed operational state and iteration history, see `PROJECT_STATE.md`.
 
 ## 🛠️ Local Run
 
@@ -108,6 +105,57 @@ uvicorn app.main:app --reload
 ```bash
 curl http://127.0.0.1:8000/health
 ```
+
+## 🐳 Local Docker Run
+
+1. Build and start:
+
+```bash
+docker compose up -d --build
+```
+
+2. Verify API is reachable:
+
+```bash
+curl http://127.0.0.1:8000/health
+```
+
+3. Verify scheduler state (running/degraded signals):
+
+```bash
+curl http://127.0.0.1:8000/scheduler/status
+curl http://127.0.0.1:8000/metrics
+```
+
+Operator note:
+- `GET /health` confirms API/process liveness.
+- Scheduler issues are treated as degraded state; check `/metrics` scheduler fields (`failed_cycles`, `consecutive_failures`).
+
+4. Verify SQLite persistence via Docker volume:
+
+```bash
+# create data (example: register node)
+curl -X POST http://127.0.0.1:8000/nodes \
+  -H "Content-Type: application/json" \
+  -d '{"name":"docker-node","host":"127.0.0.1","port":443,"region":"us","enabled":true}'
+
+# restart container and confirm node still exists
+docker compose restart netsentinel
+curl http://127.0.0.1:8000/nodes
+
+# recreate container and confirm data still exists (volume kept)
+docker compose up -d --force-recreate
+curl http://127.0.0.1:8000/nodes
+```
+
+5. View runtime logs (stdout/stderr):
+
+```bash
+docker compose logs -f netsentinel
+```
+
+Data survives restart/re-create while `netsentinel_data` volume exists.
+`docker compose down -v` removes the volume and deletes persisted SQLite data.
 
 ## ✅ Testing
 

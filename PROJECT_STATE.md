@@ -1,11 +1,11 @@
 # Project State
 
 ## Current Phase
-Phase 1 - Monitoring MVP (Iteration 9 complete)
+Phase 2 - Operational Maturity (Iteration 10 complete)
 
 ## System Status
 Backend foundation is now operational.
-Core monitoring flow runs automatically with reliability controls and hardened SQLite persistence behavior.
+Core monitoring flow runs automatically with reliability controls, hardened SQLite persistence behavior, and local container runtime support.
 
 ## Implemented Capabilities
 - project structure
@@ -50,9 +50,12 @@ Core monitoring flow runs automatically with reliability controls and hardened S
 - additive probe history summary endpoint `GET /results/summary` (`total_checks`, `up_checks`, `down_checks`, `availability_pct`, `avg_latency_ms`, `last_checked_at`)
 - on-demand summary computation in both in-memory and SQLite repositories (no caching/background jobs)
 - repository parity tests for summary behavior across storage backends
+- minimal Docker runtime contract implementation (`Dockerfile`) with bind/port env defaults and `/health` healthcheck
+- local `docker-compose` setup with SQLite persistence via named volume
+- concise operator documentation for container run, scheduler/degraded checks, and persistence verification
 
 ## Active Focus
-Improve operator usefulness of stored probe history while preserving existing API contracts.
+Stabilize containerized local runtime semantics and degraded-state observability while preserving existing API contracts.
 
 ## Architecture Snapshot
 Backend: FastAPI API with nodes/probes/results + scheduler control endpoints
@@ -63,9 +66,10 @@ Probes: synchronous TCP probe with automatic periodic execution
 - Single-process in-memory state only
 - No distributed scheduler coordination
 - No archival/export strategy beyond retention trimming
+- No production orchestration/hardening profile yet (local Docker scope only)
 
 ## Next Iteration Goal
-Add minimal history usability safeguards (request validation for time windows and deterministic defaults/documentation for history queries).
+Add minimal degraded-state signaling policy for health operations (clear operator rule when scheduler is failing while API stays up).
 
 ## Last Updated
-Iteration 9 closed (history filters + summary endpoint + repository parity)
+Iteration 10 closed (local Docker runtime + compose volume persistence + healthcheck docs)

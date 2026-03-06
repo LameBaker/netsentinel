@@ -1,0 +1,18 @@
+services:
+  netsentinel:
+    build:
+      context: .
+    image: netsentinel:local
+    container_name: netsentinel
+    environment:
+      NETSENTINEL_STORAGE_BACKEND: sqlite
+      NETSENTINEL_SQLITE_PATH: /data/netsentinel.sqlite3
+      NETSENTINEL_BIND_HOST: 0.0.0.0
+      NETSENTINEL_BIND_PORT: 8000
+    ports:
+      - "8000:8000"
+    volumes:
+      - netsentinel_data:/data
+
+volumes:
+  netsentinel_data:
